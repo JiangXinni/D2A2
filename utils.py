@@ -25,7 +25,6 @@ import functools
 total_time = 0.0
 
 
-
 def setup_seed(seed):
      torch.manual_seed(seed)
      torch.cuda.manual_seed(seed)
@@ -55,8 +54,6 @@ class Trainer(object):
         self.upscale_func = functools.partial(
             F.interpolate, mode='bicubic', align_corners=False
         )
-
-
         # prepare log
         s = datetime.now().strftime('%Y%m%d%H%M%S')
         result_root = '%s/%s-x%s-%s'%(args.trainresult, args.model_file, args.scale, s)
@@ -70,20 +67,16 @@ class Trainer(object):
     def validate(self):
         self.model.eval()
         rmse = np.zeros(self.test_loader.__len__())
-        
         t = tqdm(iter(self.test_loader), leave=True, total=self.test_loader.__len__())
         for idx, data in enumerate(t):            
             guidance, target, gt, min, max,mde = data['guidance'].cuda(), data['target'].cuda(), data['gt'].cuda(), data['min'], data['max'],data['mde'].cuda()
-            
             out = self.model(guidance,target,mde)
-
             gt_ = gt[0,0].cpu().numpy()
             out_ = out[0,0].cpu().numpy()
             if self.args.dataset == "nyu":
                 gt_ = gt_[6:-6, 6:-6]
                 out_ = out_[6:-6, 6:-6]
             rmse[idx] = calc_rmse(gt_, out_, min.numpy(),max.numpy())
-            
             t.set_description('[validate] rmse: %f' %rmse[:idx+1].mean())
             t.refresh()
         return rmse
@@ -98,7 +91,6 @@ class Trainer(object):
             self.nowepoch = epoch + 1
             self.model.train()
             running_loss = 0.0
-            
             t = tqdm(iter(self.train_loader), leave=True, total=self.train_loader.__len__())
             for idx, data in enumerate(t):
                 self.optimizer.zero_grad()
@@ -106,17 +98,14 @@ class Trainer(object):
                 guidance, target, gt,mde = data['guidance'].cuda(), data['target'].cuda(), data['gt'].cuda(),data['mde'].cuda()
                 out = self.model(guidance, target,mde)
                 loss = self.criterion(out, gt)
-
                 loss.backward()
                 self.optimizer.step()
                 running_loss += loss.data.item()
-
                 if idx % 50 == 0:
                     running_loss /= 50
                     t.set_description('[train epoch(L1):%d] loss: %.10f' % (self.nowepoch, running_loss))
                     t.refresh()
                     logging.info('epoch:%d running_loss:%.10f' % (self.nowepoch, running_loss))
-            
             logging.info('epoch:%d optimizer_lr:%s' % (self.nowepoch, self.optimizer.state_dict()['param_groups'][0]['lr']))
             torch.save(self.model.state_dict(), "%s/last_parameter" % (self.result_root))
 
@@ -124,7 +113,6 @@ class Trainer(object):
                 rmse = self.validate()
                 mean_rmse = rmse.mean()
                 logging.info('epoch:%d --------mean_rmse:%.10f ' % (self.nowepoch, mean_rmse))
-
                 if mean_rmse < best_rmse:
                     best_rmse = mean_rmse
                     best_epoch = self.nowepoch
@@ -161,51 +149,37 @@ class Tester(object):
     def validate(self):
         self.model.eval()
         rmse = np.zeros(self.test_loader.__len__())
-
-
         global total_time
         total_time = 0.0
-
         t = tqdm(iter(self.test_loader), leave=True, total=self.test_loader.__len__())
         for idx, data in enumerate(t):
             guidance, target, gt, min, max, mde = data['guidance'].cuda(), data['target'].cuda(), data['gt'].cuda(), \
             data['min'], data['max'], data['mde'].cuda()
-
             begin_time = time.time()
             out = self.model(guidance, target, mde)
             end_time = time.time()
             total_time = total_time + (end_time - begin_time)
-
             errormap = torch.abs(gt - out)
-
             gt_ = gt[0, 0].cpu().numpy()
             out_ = out[0, 0].cpu().numpy()
             if self.args.dataset == "nyu":
                 gt_ = gt_[6:-6, 6:-6]
                 out_ = out_[6:-6, 6:-6]
             rmse[idx] = calc_rmse(gt_, out_, min.numpy(), max.numpy())
-
             if self.args.save:
                 out_depth = out[0][0].cpu().numpy() * (max.numpy() - min.numpy()) + min.numpy()
                 gt_depth = gt[0][0].cpu().numpy() * (max.numpy() - min.numpy()) + min.numpy()
                 lr_depth = target[0][0].cpu().numpy() * (max.numpy() - min.numpy()) + min.numpy()
                 errormap = errormap[0][0].cpu().numpy() * (max.numpy() - min.numpy()) + min.numpy()
-
                 plt.imsave(os.path.join(self.save_hotmap_root, f'{idx}_sr_color.png'), out_depth, cmap='plasma')
                 plt.imsave(os.path.join(self.save_hotmap_root, f'{idx}_errormap.png'), errormap, cmap='afmhot')
                 plt.imsave(os.path.join(self.save_hotmap_root, f'{idx}_gt_color.png'), gt_depth, cmap='plasma')
                 plt.imsave(os.path.join(self.save_hotmap_root, f'{idx}_lr_color.png'), lr_depth, cmap='plasma')
-
             t.set_description('[validate] rmse: %f' % rmse[:idx + 1].mean())
-
             t.refresh()
             logging.info('idx:%d rmse:%.10f' % (idx, rmse[idx]))
-
         logging.info('mean rmse:%.10f\n\n\n' % (rmse.mean()))
-
         logging.info("total_time:%.10f" % (total_time))
-
-
         return rmse
 
 
