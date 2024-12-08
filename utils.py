@@ -1,5 +1,4 @@
 import os
-# os.environ["CUDA_VISIBLE_DEVICES"] = "0"
 import torch.nn as nn
 import random
 import torch
@@ -18,9 +17,13 @@ import logging
 from datetime import datetime
 import os
 import matplotlib.pyplot as plt
-
+import wandb
 import time
+import torch.nn.functional as F
+import functools
+
 total_time = 0.0
+
 
 
 def setup_seed(seed):
@@ -31,11 +34,10 @@ def setup_seed(seed):
      random.seed(seed)
      torch.backends.cudnn.deterministic = True
 
-
-def calc_rmse(a, b, min,max):
-    a = a*(max-min) + min
-    b = b*(max-min) + min
-    return np.sqrt(np.mean(np.power(a-b,2)))
+def calc_rmse(a, b, min, max):
+    a = a * (max - min) + min
+    b = b * (max - min) + min
+    return np.sqrt(np.mean(np.power(a - b, 2)))
 
 
 
@@ -50,6 +52,10 @@ class Trainer(object):
         self.test_loader = test_loader
         self.maxepoch = args.epoch
         self.nowepoch = 0
+        self.upscale_func = functools.partial(
+            F.interpolate, mode='bicubic', align_corners=False
+        )
+
 
         # prepare log
         s = datetime.now().strftime('%Y%m%d%H%M%S')
@@ -67,10 +73,10 @@ class Trainer(object):
         
         t = tqdm(iter(self.test_loader), leave=True, total=self.test_loader.__len__())
         for idx, data in enumerate(t):            
-            guidance, target, gt, min, max = data['guidance'].cuda(), data['target'].cuda(), data['gt'].cuda(), data['min'], data['max']
+            guidance, target, gt, min, max,mde = data['guidance'].cuda(), data['target'].cuda(), data['gt'].cuda(), data['min'], data['max'],data['mde'].cuda()
             
-            out = self.model(guidance, target)
-            
+            out = self.model(guidance,target,mde)
+
             gt_ = gt[0,0].cpu().numpy()
             out_ = out[0,0].cpu().numpy()
             if self.args.dataset == "nyu":
@@ -97,10 +103,10 @@ class Trainer(object):
             for idx, data in enumerate(t):
                 self.optimizer.zero_grad()
                 self.scheduler.step()
-                guidance, target, gt = data['guidance'].cuda(), data['target'].cuda(), data['gt'].cuda()
-                out = self.model(guidance, target)
-
+                guidance, target, gt,mde = data['guidance'].cuda(), data['target'].cuda(), data['gt'].cuda(),data['mde'].cuda()
+                out = self.model(guidance, target,mde)
                 loss = self.criterion(out, gt)
+
                 loss.backward()
                 self.optimizer.step()
                 running_loss += loss.data.item()
@@ -112,16 +118,20 @@ class Trainer(object):
                     logging.info('epoch:%d running_loss:%.10f' % (self.nowepoch, running_loss))
             
             logging.info('epoch:%d optimizer_lr:%s' % (self.nowepoch, self.optimizer.state_dict()['param_groups'][0]['lr']))
+            torch.save(self.model.state_dict(), "%s/last_parameter" % (self.result_root))
 
-            rmse = self.validate()
-            mean_rmse = rmse.mean()
-            logging.info('epoch:%d --------mean_rmse:%.10f '%(self.nowepoch,mean_rmse))
+            if epoch%5==0:
+                rmse = self.validate()
+                mean_rmse = rmse.mean()
+                logging.info('epoch:%d --------mean_rmse:%.10f ' % (self.nowepoch, mean_rmse))
 
-            if mean_rmse < best_rmse:
-                best_rmse = mean_rmse
-                best_epoch = self.nowepoch
-                torch.save(self.model.state_dict(), "%s/best_parameter"%(self.result_root))
-            logging.info('best_epoch:%d --------best_mean_rmse:%.10f '%(best_epoch, best_rmse)) 
+                if mean_rmse < best_rmse:
+                    best_rmse = mean_rmse
+                    best_epoch = self.nowepoch
+                    torch.save(self.model.state_dict(), "%s/best_parameter" % (self.result_root))
+                logging.info('best_epoch:%d --------best_mean_rmse:%.10f ' % (best_epoch, best_rmse))
+            if epoch >= max_epoch - 5:
+                torch.save(self.model.state_dict(), f"%s/{epoch}_parameter" % (self.result_root))
 
 
 
@@ -152,36 +162,55 @@ class Tester(object):
         self.model.eval()
         rmse = np.zeros(self.test_loader.__len__())
 
+
         global total_time
         total_time = 0.0
-                
+
         t = tqdm(iter(self.test_loader), leave=True, total=self.test_loader.__len__())
-        for idx, data in enumerate(t):            
-            guidance, target, gt, min, max = data['guidance'].cuda(), data['target'].cuda(), data['gt'].cuda(), data['min'], data['max']
+        for idx, data in enumerate(t):
+            guidance, target, gt, min, max, mde = data['guidance'].cuda(), data['target'].cuda(), data['gt'].cuda(), \
+            data['min'], data['max'], data['mde'].cuda()
+
             begin_time = time.time()
-            out = self.model(guidance, target)
+            out = self.model(guidance, target, mde)
             end_time = time.time()
             total_time = total_time + (end_time - begin_time)
-            
-            gt_ = gt[0,0].cpu().numpy()
-            out_ = out[0,0].cpu().numpy()
+
+            errormap = torch.abs(gt - out)
+
+            gt_ = gt[0, 0].cpu().numpy()
+            out_ = out[0, 0].cpu().numpy()
             if self.args.dataset == "nyu":
                 gt_ = gt_[6:-6, 6:-6]
                 out_ = out_[6:-6, 6:-6]
-            rmse[idx] = calc_rmse(gt_, out_, min.numpy(),max.numpy())
-            if self.args.save:
-                out_depth = out[0][0].cpu().numpy()*(max.numpy()-min.numpy()) + min.numpy()
-                plt.imsave(os.path.join(self.save_hotmap_root, f'{idx}.png'), out_depth, cmap='plasma')
-                np.save(os.path.join(self.save_depth_root, f'{idx}.npy'), out_depth)
+            rmse[idx] = calc_rmse(gt_, out_, min.numpy(), max.numpy())
 
-            t.set_description('[validate] rmse: %f' %rmse[:idx+1].mean())
+            if self.args.save:
+                out_depth = out[0][0].cpu().numpy() * (max.numpy() - min.numpy()) + min.numpy()
+                gt_depth = gt[0][0].cpu().numpy() * (max.numpy() - min.numpy()) + min.numpy()
+                lr_depth = target[0][0].cpu().numpy() * (max.numpy() - min.numpy()) + min.numpy()
+                errormap = errormap[0][0].cpu().numpy() * (max.numpy() - min.numpy()) + min.numpy()
+
+                plt.imsave(os.path.join(self.save_hotmap_root, f'{idx}_sr_color.png'), out_depth, cmap='plasma')
+                plt.imsave(os.path.join(self.save_hotmap_root, f'{idx}_errormap.png'), errormap, cmap='afmhot')
+                plt.imsave(os.path.join(self.save_hotmap_root, f'{idx}_gt_color.png'), gt_depth, cmap='plasma')
+                plt.imsave(os.path.join(self.save_hotmap_root, f'{idx}_lr_color.png'), lr_depth, cmap='plasma')
+
+            t.set_description('[validate] rmse: %f' % rmse[:idx + 1].mean())
+
             t.refresh()
             logging.info('idx:%d rmse:%.10f' % (idx, rmse[idx]))
+
         logging.info('mean rmse:%.10f\n\n\n' % (rmse.mean()))
-        
+
         logging.info("total_time:%.10f" % (total_time))
-        logging.info("per_time:%.10f" %  (total_time / self.test_loader.__len__()))
+
+
         return rmse
+
+
+
+
 
         
 
