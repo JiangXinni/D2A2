@@ -3,7 +3,7 @@
 Model and Alignment-then-Fusion Strategy </h2>
 
 <p align="center">
-  > Yuan-lin Zhang <sup>#</sup>,Xin-Ni Jiang<sup>#</sup>,Chun-Le Guo<sup>*</sup>,  Xiong-Xin Tang<sup>*</sup>, Guo-Qing Wang, Wei Li, Xun Liu,Chong-Yi Li
+  Yuan-lin Zhang <sup>#</sup>,Xin-Ni Jiang<sup>#</sup>,Chun-Le Guo<sup>*</sup>,  Xiong-Xin Tang<sup>*</sup>, Guo-Qing Wang, Wei Li, Xun Liu,Chong-Yi Li
 </p>
 <p align="center">
 [<a href="https://arxiv.org/abs/2401.08123"><strong>Paper</strong></a>]
