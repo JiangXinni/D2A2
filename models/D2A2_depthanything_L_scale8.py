@@ -449,23 +449,6 @@ class Upsampler(nn.Module):
         return x
 
 
-class SFTLayer(nn.Module):
-    def __init__(self, n_feats=32):
-        super(SFTLayer, self).__init__()
-        self.SFT_scale_conv0 = nn.Conv2d(n_feats, n_feats, 1)
-        self.SFT_scale_conv1 = nn.Conv2d(n_feats, 2 * n_feats, 1)
-        self.SFT_shift_conv0 = nn.Conv2d(n_feats, n_feats, 1)
-        self.SFT_shift_conv1 = nn.Conv2d(n_feats, 2 * n_feats, 1)
-
-    def forward(self, feature, condition):
-        # x[0]: fea; x[1]: cond
-        scale = self.SFT_scale_conv1(F.leaky_relu(self.SFT_scale_conv0(condition), 0.1, inplace=True))
-        shift = self.SFT_shift_conv1(F.leaky_relu(self.SFT_shift_conv0(condition), 0.1, inplace=True))
-        return feature * (scale + 1) + shift
-
-
-
-
 class MainNet(nn.Module):
     def __init__(self, n_feats, n_resblocks, res_scale=1.):
         super(MainNet, self).__init__()
@@ -473,44 +456,30 @@ class MainNet(nn.Module):
         self.n_feats = n_feats
         self.act = nn.LeakyReLU(negative_slope=0.2, inplace=False)
         self.SFE  = SFE(1, n_feats, n_resblocks, res_scale)
-
         self.conv11_head = conv3x3(n_feats, n_feats)
         self.concat1 = Fusion(n_feats)
         self.upsampler12 = Upsampler(2, n_feats)
-
         self.conv22_head = conv3x3(n_feats, n_feats)
         self.concat2 = Fusion(n_feats)
         self.upsampler23 = Upsampler(2, n_feats)
-
         self.conv33_head = conv3x3(n_feats, n_feats)
         self.concat3 = Fusion(n_feats)
-
         self.conv44_head = conv3x3(n_feats, n_feats)
         self.concat4 = Fusion(n_feats)
         self.upsampler34 = Upsampler(2, n_feats)
-
         self.conv_tail1 = conv3x3(n_feats, n_feats//2)
         self.conv_tail2 = conv1x1(n_feats//2, 1)
-
-
         self.MDE_Encoder1 = Restormer_CNN_block(1, n_feats)
         self.MDE_Encoder2 = Restormer_CNN_block(n_feats, n_feats )
         self.MDE_Encoder3 = Restormer_CNN_block(n_feats, n_feats )
         self.MDE_Encoder4 = Restormer_CNN_block(n_feats, n_feats)
-
         self.concatMDE1=Fusion(n_feats)
         self.concatMDE2 = Fusion(n_feats)
         self.concatMDE3 = Fusion(n_feats)
         self.concatMDE4 = Fusion(n_feats)
-
-
-
         self.condition_convdown1= nn.Conv2d(n_feats, n_feats, kernel_size=3, stride=2, padding=1, bias=False,padding_mode="reflect")
         self.condition_convdown2 = nn.Conv2d(n_feats, n_feats, kernel_size=3, stride=2, padding=1, bias=False,padding_mode="reflect")
         self.condition_convdown3 = nn.Conv2d(n_feats, n_feats, kernel_size=3, stride=2, padding=1, bias=False,padding_mode="reflect")
-
-
-
 
     def forward(self, x, ref_lv4=None,ref_lv3=None, ref_lv2=None,ref_lv1=None,MDE=None):
         x_inter = F.interpolate(x, scale_factor=8, mode='bicubic')
@@ -518,38 +487,26 @@ class MainNet(nn.Module):
         mde_condition2=self.MDE_Encoder2(self.condition_convdown1(mde_condition1))
         mde_condition3=self.MDE_Encoder3(self.condition_convdown2(mde_condition2))
         mde_condition4 = self.MDE_Encoder4(self.condition_convdown3(mde_condition3))
-
-
         x = self.act(self.SFE(x))
         x11 = x
-
         ref_lv4 = self.act(self.conv11_head(ref_lv4))
         x11 = self.concatMDE1(x11, mde_condition4)
         x11 = self.concat1(x11,ref_lv4)
-
         x22 = self.upsampler12(x11)
-
         ref_lv3 = self.act(self.conv22_head(ref_lv3))
         x22 = self.concatMDE2(x22, mde_condition3)
         x22 = self.concat2(x22,ref_lv3)
-
         x33 = self.upsampler23(x22)
-
         ref_lv2 = self.act(self.conv33_head(ref_lv2))
         x33 = self.concatMDE3(x33, mde_condition2)
         x33 = self.concat3(x33,ref_lv2)
-
         x44 = self.upsampler34(x33)
-
         ref_lv1 = self.act(self.conv44_head(ref_lv1))
         x44 = self.concatMDE4(x44, mde_condition1)
         x44 = self.concat4(x44, ref_lv1)
-
         x = self.conv_tail1(x44)
         x = self.act(x)
         x = self.conv_tail2(x)
-
-
         x=x+x_inter
         return x
 
@@ -565,15 +522,9 @@ class D2A2(nn.Module):
 
     def forward(self, rgb = None,depth = None,MDE=None):
         ref, lr = rgb, depth
-
-
         ref=torch.cat([ref, MDE], dim=1)
-
         ref_lv1, ref_lv2, ref_lv3,ref_lv4 = self.LTE(ref)
-
-
         sr = self.mainNet(lr, ref_lv4,ref_lv3, ref_lv2, ref_lv1,MDE)
-
         return sr
 
 
