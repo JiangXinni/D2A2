@@ -314,7 +314,6 @@ class calc_mean_std_learnable(nn.Module):
         x_var = x.view(N, C, -1).var(dim=2) + self.eps
         x_std = x_var.sqrt()
         x_mean = x.view(N, C, -1).mean(dim=2)
-
         x_std = self.std_mlp(x_std).view(N, self.out_feat, 1, 1)
         x_mean = self.mean_mlp(x_mean).view(N, self.out_feat, 1, 1)
 
@@ -330,7 +329,6 @@ class LearnableDomainAlignment(nn.Module):
         size = rgb.size()
         depth_mean, depth_std = self.calc_msl(depth)
         rgb_mean, rgb_std = calc_mean_std(rgb)
-
         rgb_normalized = (rgb - rgb_mean.expand(
             size)) / rgb_std.expand(size)
         return rgb_normalized * depth_std.expand(size) + depth_mean.expand(size)
@@ -404,7 +402,6 @@ class Fusion(nn.Module):
         self.conv_fuse2 = conv3x3(n_feats*2,n_feats)
         self.GC = GatedConv2dWithActivation(n_feats, n_feats, 3, 1, padding=1)
         self.attention = PA(n_feats)
-
         self.act = nn.LeakyReLU(negative_slope=0.2, inplace=False)
 
 
@@ -446,7 +443,7 @@ class SFTLayer(nn.Module):
         self.SFT_scale_conv1 = nn.Conv2d(n_feats, 2 * n_feats, 1)
         self.SFT_shift_conv0 = nn.Conv2d(n_feats, n_feats, 1)
         self.SFT_shift_conv1 = nn.Conv2d(n_feats, 2 * n_feats, 1)
-
+        
     def forward(self, feature, condition):
         # x[0]: fea; x[1]: cond
         scale = self.SFT_scale_conv1(F.leaky_relu(self.SFT_scale_conv0(condition), 0.1, inplace=True))
@@ -463,69 +460,46 @@ class MainNet(nn.Module):
         self.n_feats = n_feats
         self.act = nn.LeakyReLU(negative_slope=0.2, inplace=False)
         self.SFE  = SFE(1, n_feats, n_resblocks, res_scale)
-
         self.conv11_head = conv3x3(n_feats, n_feats)
         self.concat1 = Fusion(n_feats)
         self.upsampler12 = Upsampler(2, n_feats)
-
         self.conv22_head = conv3x3(n_feats, n_feats)
         self.concat2 = Fusion(n_feats)
         self.upsampler23 = Upsampler(2, n_feats)
-
         self.conv33_head = conv3x3(n_feats, n_feats)
         self.concat3 = Fusion(n_feats)
         self.conv_tail1 = conv3x3(n_feats, n_feats//2)
         self.conv_tail2 = conv1x1(n_feats//2, 1)
-
-
-
         self.MDE_Encoder1 = Restormer_CNN_block(1, n_feats)
         self.MDE_Encoder2 = Restormer_CNN_block(n_feats, n_feats )
         self.MDE_Encoder3 = Restormer_CNN_block(n_feats, n_feats )
         self.concatMDE1=Fusion(n_feats)
         self.concatMDE2 = Fusion(n_feats)
         self.concatMDE3 = Fusion(n_feats)
-
-
-
-
         self.condition_convdown1=nn.Conv2d(n_feats, n_feats, kernel_size=3, stride=2, padding=1, bias=False,padding_mode="reflect")
         self.condition_convdown2 = nn.Conv2d(n_feats, n_feats, kernel_size=3, stride=2, padding=1, bias=False,padding_mode="reflect")
-
-
-
+        
     def forward(self, x, ref_lv3=None, ref_lv2=None,ref_lv1=None,MDE=None):
         x_inter = F.interpolate(x, scale_factor=4, mode='bicubic')
         mde_condition=self.MDE_Encoder1(MDE)
         mde_condition1=self.MDE_Encoder2(self.condition_convdown1(mde_condition))
         mde_condition2=self.MDE_Encoder3(self.condition_convdown2(mde_condition1))
-
-
         x = self.act(self.SFE(x))
         x11 = x
-
         ref_lv3 = self.act(self.conv11_head(ref_lv3))
         x11 = self.concatMDE1(x11, mde_condition2)
         x11 = self.concat1(x11,ref_lv3)
-
         x22 = self.upsampler12(x11)
-
         ref_lv2 = self.act(self.conv22_head(ref_lv2))
         x22 = self.concatMDE2(x22, mde_condition1)
         x22 = self.concat2(x22,ref_lv2)
-
         x33 = self.upsampler23(x22)
-
         ref_lv1 = self.act(self.conv33_head(ref_lv1))
         x33 = self.concatMDE3(x33, mde_condition)
         x33 = self.concat3(x33,ref_lv1)
-
-
         x = self.conv_tail1(x33)
         x = self.act(x)
         x = self.conv_tail2(x)
-
-
         x=x+x_inter
         return x
 
@@ -544,31 +518,22 @@ class D2A2(nn.Module):
         if self.args.scale > 4:
             lr = F.interpolate(lr, scale_factor=self.args.scale//4, mode='bicubic')
 
-        ref=torch.cat([ref, MDE], dim=1)#把MDE图还是拼到 可以做消融
-
+        ref=torch.cat([ref, MDE], dim=1)
         ref_lv1, ref_lv2, ref_lv3 = self.LTE(ref)
-
-
         sr = self.mainNet(lr, ref_lv3, ref_lv2, ref_lv1,MDE)
-
         return sr
 
 
 if __name__ == '__main__':
-
-
     model = D2A2(args).cuda()
     total_params = sum(p.numel() for p in model.parameters())
     print(f"Total Params: {total_params}")
-    # summary(model, input_size=[(1, 3, 256, 256), (1, 1, 32, 32), (1, 1, 256, 256)])  # 根据您的实际输入大小调整
-
+    # summary(model, input_size=[(1, 3, 256, 256), (1, 1, 32, 32), (1, 1, 256, 256)]) 
     img = torch.randn(1, 3, 256, 256).cuda()
     depth = torch.randn(1, 1, 32, 32).cuda()
     mde=torch.randn(1,1,256,256).cuda()
     out=model(img,depth,mde)
-
     print(out.shape)
-
     flops, params = profile(model, inputs=(img,depth,mde))
     print(f"FLOPs: {flops / 1e9:.2f} G")
     print(f"Params: {params / 1e6:.2f} M")
