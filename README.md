@@ -3,7 +3,7 @@
 Model and Alignment-then-Fusion Strategy </h2>
 
 <p align="center">
-    Yuan-lin Zhang <sup>#</sup>,Xin-Ni Jiang<sup>#</sup>, [Chun-Le Guo](https://mmcheng.net/clguo/)<sup>*</sup>,  Xiong-Xin Tang<sup>*</sup>, Guo-Qing Wang, Wei Li, Xun Liu, [Chong-Yi Li](https://li-chongyi.github.io/)<sup>*</sup>
+  > Yuan-lin Zhang <sup>#</sup>,Xin-Ni Jiang<sup>#</sup>, [Chun-Le Guo](https://mmcheng.net/clguo/)<sup>*</sup>,  Xiong-Xin Tang<sup>*</sup>, Guo-Qing Wang, Wei Li, Xun Liu, [Chong-Yi Li](https://li-chongyi.github.io/)
 </p>
 
 <p align="center">
