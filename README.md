@@ -3,9 +3,8 @@
 Model and Alignment-then-Fusion Strategy </h2>
 
 <p align="center">
-  > Yuan-lin Zhang <sup>#</sup>,Xin-Ni Jiang<sup>#</sup>, [Chun-Le Guo](https://mmcheng.net/clguo/)<sup>*</sup>,  Xiong-Xin Tang<sup>*</sup>, Guo-Qing Wang, Wei Li, Xun Liu, [Chong-Yi Li](https://li-chongyi.github.io/)
+  > Yuan-lin Zhang <sup>#</sup>,Xin-Ni Jiang<sup>#</sup>,Chun-Le Guo<sup>*</sup>,  Xiong-Xin Tang<sup>*</sup>, Guo-Qing Wang, Wei Li, Xun Liu,[Chong-Yi Li](https://li-chongyi.github.io/)
 </p>
-
 <p align="center">
 [<a href="https://arxiv.org/abs/2401.08123"><strong>Paper</strong></a>]
 [<a href="https://JiangXinni.github.io/projects/D2A2/index.html"><strong>Project Page</strong></a>]
@@ -45,7 +44,6 @@ conda activate GDSR-D2A2
 cd models/Deformable_Convolution_V2
 sh make.sh
 ```
-
 ### Datasets
 The [NYUv2](https://cs.nyu.edu/~silberman/datasets/nyu_depth_v2.html) dataset can be downloaded [here](https://drive.google.com/file/d/1ZWpiVkog5aDBzVi2dCjGGSdiVqrLNTjR/view?usp=sharing). 
 Your folder structure should look like this:
