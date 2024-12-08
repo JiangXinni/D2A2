@@ -436,20 +436,6 @@ class Upsampler(nn.Module):
         return x
 
 
-class SFTLayer(nn.Module):
-    def __init__(self, n_feats=32):
-        super(SFTLayer, self).__init__()
-        self.SFT_scale_conv0 = nn.Conv2d(n_feats, n_feats, 1)
-        self.SFT_scale_conv1 = nn.Conv2d(n_feats, 2 * n_feats, 1)
-        self.SFT_shift_conv0 = nn.Conv2d(n_feats, n_feats, 1)
-        self.SFT_shift_conv1 = nn.Conv2d(n_feats, 2 * n_feats, 1)
-        
-    def forward(self, feature, condition):
-        # x[0]: fea; x[1]: cond
-        scale = self.SFT_scale_conv1(F.leaky_relu(self.SFT_scale_conv0(condition), 0.1, inplace=True))
-        shift = self.SFT_shift_conv1(F.leaky_relu(self.SFT_shift_conv0(condition), 0.1, inplace=True))
-        return feature * (scale + 1) + shift
-
 
 
 
