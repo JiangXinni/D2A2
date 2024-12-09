@@ -6,7 +6,7 @@ Model and Alignment-then-Fusion Strategy </h2>
   Yuan-Lin Zhang <sup>#</sup>,Xin-Ni Jiang<sup>#</sup>,Chun-Le Guo<sup>*</sup>,  Xiong-Xin Tang<sup>*</sup>, Guo-Qing Wang, Wei Li, Xun Liu,Chong-Yi Li
 </p>
 <p align="center">
-[<a href="https://arxiv.org/abs/2401.08123"><strong>Paper</strong></a>]
+[<a href=""><strong>Paper</strong></a>]
 [<a href="https://JiangXinni.github.io/projects/D2A2/index.html"><strong>Project Page</strong></a>]
 </p>
 
